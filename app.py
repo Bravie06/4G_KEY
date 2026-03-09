@@ -22,16 +22,39 @@ def process_data(raw_file_path, template_file_path, output_file_path):
         # Get unique sites
         sites = df_filtered['Managed\xa0Element'].unique()
 
+        # Parse template to dynamically get KPIs
+        df_temp = pd.read_excel(template_file_path, header=None)
+
+        # First site starts at row index 4 in template
+        # The rows below the site name contain the KPIs
+        kpi_labels = []
+        for i in range(5, min(25, len(df_temp))):
+            val = str(df_temp.iloc[i, 0])
+            if pd.isna(df_temp.iloc[i, 0]) or val == 'nan':
+                break
+            # A site name might start with LIT_ or CTR_, check if it looks like a KPI
+            if "Average" in val or "Sum" in val or "(%)" in val or "(GB)" in val or "(kbps)" in val:
+                kpi_labels.append(val)
+            else:
+                break # Reached the next site
+
+        if not kpi_labels:
+            # Fallback
+            kpi_labels = [
+                "Average of ORA_4G_Cell Availability, excluding BLU_ZTE(%)",
+                "Sum of ORA_4G_Total TRAFFIC(DL+UL)(GB)",
+                "Average of ORA_4G_ERAB_Setup_SR_new(%)",
+                "Average of ORA_4G_DL_User_Throughput_New(kbps)",
+                "Average of ORA_4G_LTE_Drop_Call_Rate_WO_VoLTE_New(%)",
+                "Average of ORA_4G_CALL_SETUP_SUCCESS_RATE_New(%)"
+            ]
+
         # Define KPI mapping
-        # Template KPI Label -> Raw Data Column
-        kpi_mapping = [
-            ("Average of ORA_4G_Cell Availability, excluding BLU_ZTE(%)", "ORA_4G_Cell Availability, excluding BLU_ZTE(%)"),
-            ("Sum of ORA_4G_Total TRAFFIC(DL+UL)(GB)", "ORA_4G_Total TRAFFIC(DL+UL)(GB)"),
-            ("Average of ORA_4G_ERAB_Setup_SR_new(%)", "ORA_4G_ERAB_Setup_SR_new(%)"),
-            ("Average of ORA_4G_DL_User_Throughput_New(kbps)", "ORA_4G_DL_User_Throughput_New(kbps)"),
-            ("Average of ORA_4G_LTE_Drop_Call_Rate_WO_VoLTE_New(%)", "ORA_4G_LTE_Drop_Call_Rate_WO_VoLTE_New(%)"),
-            ("Average of ORA_4G_CALL_SETUP_SUCCESS_RATE_New(%)", "ORA_4G_CALL_SETUP_SUCCESS_RATE_New(%)")
-        ]
+        # Extract base column name from template KPI string
+        kpi_mapping = []
+        for label in kpi_labels:
+            base_col = label.replace("Average of ", "").replace("Sum of ", "")
+            kpi_mapping.append((label, base_col))
 
         # Colors for fonts and background fills
         green_font = Font(color="006100")
@@ -40,36 +63,70 @@ def process_data(raw_file_path, template_file_path, output_file_path):
         red_font = Font(color="9C0006")
         red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
+        # Styles
+        thin_border = Border(left=Side(style='thin'),
+                             right=Side(style='thin'),
+                             top=Side(style='thin'),
+                             bottom=Side(style='thin'))
+
+        bold_font = Font(bold=True)
+        center_align = Alignment(horizontal="center", vertical="center")
+        left_align = Alignment(horizontal="left", vertical="center")
+        indent_align = Alignment(horizontal="left", vertical="center", indent=1)
+
         # Create a new workbook
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Report"
 
         # Add headers as per template structure
-        ws.cell(row=3, column=2, value="Column Labels")
+        c_label = ws.cell(row=2, column=2, value="Column Labels")
 
-        ws.cell(row=4, column=1, value="Row Labels")
+        r_label = ws.cell(row=3, column=1, value="Row Labels")
+        r_label.font = bold_font
+        r_label.alignment = left_align
+        r_label.border = thin_border
+
         for col_idx, time_val in enumerate(last_10_hours, start=2):
             # Format time as string
-            ws.cell(row=4, column=col_idx, value=pd.to_datetime(time_val).strftime("%Y-%m-%d %H:%M:%S"))
+            cell = ws.cell(row=3, column=col_idx, value=pd.to_datetime(time_val).strftime("%Y-%m-%d %H:%M:%S"))
+            cell.font = bold_font
+            cell.alignment = center_align
+            cell.border = thin_border
 
-        current_row = 5
+        current_row = 4
 
         for site in sites:
             # Site header
-            ws.cell(row=current_row, column=1, value=site)
+            cell = ws.cell(row=current_row, column=1, value=site)
+            cell.font = bold_font
+            cell.alignment = left_align
+            cell.border = thin_border
+
+            # Empty cells for site row across timestamps
+            for col_idx in range(2, 2 + len(last_10_hours)):
+                empty_cell = ws.cell(row=current_row, column=col_idx, value="")
+                empty_cell.border = thin_border
+
             current_row += 1
 
             site_data = df_filtered[df_filtered['Managed\xa0Element'] == site]
 
             for kpi_label, raw_kpi in kpi_mapping:
-                ws.cell(row=current_row, column=1, value=kpi_label)
+                cell_kpi = ws.cell(row=current_row, column=1, value=kpi_label)
+                cell_kpi.alignment = indent_align
+                cell_kpi.border = thin_border
 
                 for col_idx, time_val in enumerate(last_10_hours, start=2):
                     val_series = site_data[site_data['Begin Time'] == time_val][raw_kpi]
                     if not val_series.empty:
                         val = val_series.values[0]
                         cell = ws.cell(row=current_row, column=col_idx, value=val)
+
+                        cell.border = thin_border
+                        cell.alignment = center_align
+                        if isinstance(val, (int, float)):
+                            cell.number_format = "0.00"
 
                         # Apply coloring logic
                         if val is not None:
@@ -94,13 +151,16 @@ def process_data(raw_file_path, template_file_path, output_file_path):
                                 else:
                                     cell.font = red_font
                                     cell.fill = red_fill
+                    else:
+                        empty_cell = ws.cell(row=current_row, column=col_idx, value="")
+                        empty_cell.border = thin_border
 
                 current_row += 1
 
         # Adjust column widths
-        ws.column_dimensions['A'].width = 60
+        ws.column_dimensions['A'].width = 75
         for col in range(2, 2 + len(last_10_hours)):
-            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 25
 
         # Save output
         wb.save(output_file_path)
