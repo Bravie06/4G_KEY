@@ -21,11 +21,18 @@ call venv\Scripts\activate
 
 :: Install required packages
 echo Installing dependencies...
-pip install -r requirements.txt >nul 2>&1
+pip install -r requirements.txt
 
 :: Run the application
 echo Starting the application...
 python app.py
+
+:: If the app closes unexpectedly, keep the window open to read errors
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo Application exited with an error. Please read the error message above.
+    pause
+)
 
 :: Deactivate after closing
 deactivate
