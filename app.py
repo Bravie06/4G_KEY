@@ -15,7 +15,6 @@ class Application(tk.Tk):
 
         # UI Variables
         self.raw_file_path = tk.StringVar()
-        self.template_file_path = tk.StringVar()
         self.event_name = tk.StringVar()
         self.status_var = tk.StringVar(value="Ready")
 
@@ -46,28 +45,19 @@ class Application(tk.Tk):
         browse_btn.pack(side='right')
 
 
-        # Template Selection Frame
-        template_frame = ttk.Frame(self)
-        template_frame.pack(fill='x', pady=10)
-
-        ttk.Label(template_frame, text="2. Select Template File (Optional):").pack(anchor='w')
-
-        template_input_frame = ttk.Frame(template_frame)
-        template_input_frame.pack(fill='x', pady=5)
-
-        template_entry = ttk.Entry(template_input_frame, textvariable=self.template_file_path, state='readonly', width=50)
-        template_entry.pack(side='left', expand=True, fill='x', padx=(0, 10))
-
-        template_browse_btn = ttk.Button(template_input_frame, text="Browse", command=self.browse_template_file)
-        template_browse_btn.pack(side='right')
-
         # Event Name Frame
         event_frame = ttk.Frame(self)
         event_frame.pack(fill='x', pady=10)
 
-        ttk.Label(event_frame, text="3. Enter Event Name:").pack(anchor='w')
+        ttk.Label(event_frame, text="2. Enter Event Name:").pack(anchor='w')
         event_entry = ttk.Entry(event_frame, textvariable=self.event_name, width=50)
         event_entry.pack(anchor='w', pady=5)
+
+        # Output Info Frame
+        info_frame = ttk.Frame(self)
+        info_frame.pack(fill='x', pady=10)
+
+        ttk.Label(info_frame, text="Note: The generated file will be saved directly to your Downloads folder.", font=('Arial', 10, 'italic'), foreground="blue").pack(anchor='w')
 
         # Generate Button
         self.generate_btn = ttk.Button(self, text="Generate Report", command=self.start_generation, style='Accent.TButton')
@@ -86,18 +76,10 @@ class Application(tk.Tk):
             self.raw_file_path.set(filename)
 
 
-    def browse_template_file(self):
-        filename = filedialog.askopenfilename(
-            title="Select Template File",
-            filetypes=(("Excel files", "*.xlsx *.xls"), ("All files", "*.*"))
-        )
-        if filename:
-            self.template_file_path.set(filename)
 
     def start_generation(self):
         raw_file = self.raw_file_path.get()
         event_name = self.event_name.get().strip()
-        template_file = self.template_file_path.get()
 
         if not raw_file:
             messagebox.showerror("Error", "Please select a raw data file.")
@@ -113,11 +95,11 @@ class Application(tk.Tk):
         self.update()
 
         # Run logic in a separate thread so UI doesn't freeze
-        threading.Thread(target=self.generate_report_thread, args=(raw_file, template_file, event_name), daemon=True).start()
+        threading.Thread(target=self.generate_report_thread, args=(raw_file, event_name), daemon=True).start()
 
-    def generate_report_thread(self, raw_file, template_file, event_name):
+    def generate_report_thread(self, raw_file, event_name):
         try:
-            output_path = core.generate_report(raw_file, template_file, event_name)
+            output_path = core.generate_report(raw_file, event_name)
             self.after(0, self.generation_success, output_path)
         except Exception as e:
             self.after(0, self.generation_error, str(e))

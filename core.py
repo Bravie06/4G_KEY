@@ -7,7 +7,7 @@ from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 def get_downloads_folder():
     return os.path.join(os.path.expanduser('~'), 'Downloads')
 
-def generate_report(raw_file_path, template_file_path, event_name):
+def generate_report(raw_file_path, event_name):
     # 1. Read raw data
     try:
         df = pd.read_excel(raw_file_path, sheet_name=0)
@@ -32,48 +32,23 @@ def generate_report(raw_file_path, template_file_path, event_name):
     last_10_times = unique_times[-10:] if len(unique_times) >= 10 else unique_times
     df_filtered = df[df['Begin Time'].isin(last_10_times)].copy()
 
-    # 4. Extract KPIs from Template dynamically
-    ordered_kpis = []
-    if template_file_path and os.path.exists(template_file_path):
-        try:
-            # The template provided stores data mapping in sheet 1
-            template_df = pd.read_excel(template_file_path, sheet_name=1, nrows=50)
-            first_col = template_df.iloc[:, 0].dropna()
-            kpis_in_template = first_col[first_col.astype(str).str.contains('Average of|Sum of', na=False)].unique().tolist()
-
-            for kpi in kpis_in_template:
-                if str(kpi).startswith('Average of '):
-                    kpi_raw = str(kpi).replace('Average of ', '')
-                elif str(kpi).startswith('Sum of '):
-                    kpi_raw = str(kpi).replace('Sum of ', '')
-                else:
-                    kpi_raw = str(kpi)
-
-                ordered_kpis.append(kpi_raw)
-
-        except Exception as e:
-            raise Exception(f"Error reading template file: {str(e)}")
-
-    if not ordered_kpis:
-        # Fallback to the requested defaults if no template provided or empty
-        ordered_kpis = [
-            'ORA_4G_Cell Availability, excluding BLU_ZTE(%)',
-            'ORA_4G_Total TRAFFIC(DL+UL)(GB)',
-            'ORA_4G_ERAB_Setup_SR_new(%)',
-            'ORA_4G_DL_User_Throughput_New(kbps)',
-            'ORA_4G_LTE_Drop_Call_Rate_WO_VoLTE_New(%)',
-            'ORA_4G_CALL_SETUP_SUCCESS_RATE_New(%)'
-        ]
-
+    # 4. Extract KPIs
+    ordered_kpis = [
+        'ORA_4G_Cell Availability, excluding BLU_ZTE(%)',
+        'ORA_4G_Total TRAFFIC(DL+UL)(GB)',
+        'ORA_4G_ERAB_Setup_SR_new(%)',
+        'ORA_4G_DL_User_Throughput_New(kbps)',
+        'ORA_4G_LTE_Drop_Call_Rate_WO_VoLTE_New(%)',
+        'ORA_4G_CALL_SETUP_SUCCESS_RATE_New(%)'
+    ]
     for kpi in ordered_kpis:
         if kpi not in df_filtered.columns:
             raise Exception(f"KPI '{kpi}' required by the template is missing in the raw data columns.")
 
-    # Multiply percentage-based KPI values by 100 if they are stored as fractions.
+    # Multiply percentage-based KPI values by 100
     for col in df_filtered.columns:
         if '(%)' in col and pd.api.types.is_numeric_dtype(df_filtered[col]):
-            if df_filtered[col].max() <= 1.0:
-                df_filtered[col] = df_filtered[col] * 100
+            df_filtered[col] = df_filtered[col] * 100
 
     # 5. Pivot/group the data to calculate the required KPIs for each entity
     agg_funcs = {}
@@ -108,8 +83,7 @@ def _generate_excel(grouped, entities, last_10_times, entity_col, ordered_kpis, 
     align_left = Alignment(horizontal='left', vertical='center')
 
     fill_green = PatternFill(start_color='00B050', end_color='00B050', fill_type='solid')
-    fill_red = PatternFill(start_color='FF0000', end_color='FF0000', fill_type='solid')
-    fill_faded_red = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+    fill_rose = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
     fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
 
     ws.cell(row=2, column=1, value="Row Labels").font = font_bold
@@ -160,17 +134,17 @@ def _generate_excel(grouped, entities, last_10_times, entity_col, ordered_kpis, 
                         if val >= 99:
                             cell.fill = fill_green
                         else:
-                            cell.fill = fill_faded_red
+                            cell.fill = fill_rose
                     elif 'CALL_SETUP_SUCCESS_RATE' in kpi_col_name:
                         if val < 98.5:
-                            cell.fill = fill_faded_red
+                            cell.fill = fill_rose
                         else:
                             cell.fill = fill_green
                     elif 'Drop_Call_Rate' in kpi_col_name:
                         if val <= 0.5:
                             cell.fill = fill_green
                         else:
-                            cell.fill = fill_red
+                            cell.fill = fill_rose
                     else:
                         cell.fill = fill_white
 
