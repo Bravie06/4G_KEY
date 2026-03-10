@@ -82,18 +82,21 @@ def _generate_excel(grouped, entities, last_10_times, entity_col, ordered_kpis, 
     align_center = Alignment(horizontal='center', vertical='center')
     align_left = Alignment(horizontal='left', vertical='center')
 
-    fill_green = PatternFill(start_color='00B050', end_color='00B050', fill_type='solid')
+    fill_green = PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')
     fill_rose = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
     fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
+    fill_header = PatternFill(start_color='BDD7EE', end_color='BDD7EE', fill_type='solid')
 
     ws.cell(row=2, column=1, value="Row Labels").font = font_bold
     ws.cell(row=2, column=1).border = border_thin
+    ws.cell(row=2, column=1).fill = fill_header
 
     for col_idx, ts in enumerate(last_10_times, start=2):
         cell = ws.cell(row=2, column=col_idx, value=ts.strftime('%Y-%m-%d %H:%M:%S'))
         cell.font = font_bold
         cell.border = border_thin
         cell.alignment = align_center
+        cell.fill = fill_header
 
     current_row = 3
 
@@ -127,8 +130,9 @@ def _generate_excel(grouped, entities, last_10_times, entity_col, ordered_kpis, 
                 cell.alignment = align_center
 
                 if val is not None and not pd.isna(val):
-                    val = round(float(val), 2)
+                    val = float(val)
                     cell.value = val
+                    cell.number_format = '0.00'
 
                     if 'Availability' in kpi_col_name:
                         if val >= 99:
