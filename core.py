@@ -45,12 +45,22 @@ def generate_report(raw_file_path, event_name):
         if kpi not in df_filtered.columns:
             raise Exception(f"KPI '{kpi}' required by the template is missing in the raw data columns.")
 
-    # Multiply percentage-based KPI values by 100
-    for col in df_filtered.columns:
-        if '(%)' in col and pd.api.types.is_numeric_dtype(df_filtered[col]):
-            df_filtered[col] = df_filtered[col] * 100
 
-    # 5. Pivot/group the data to calculate the required KPIs for each entity
+    # Determine if the raw data is natively in percentages (0-100) or fractions (0-1)
+    # by checking a reliably high KPI like Availability or CSSR.
+    is_fraction = False
+    for kpi in ['ORA_4G_Cell Availability, excluding BLU_ZTE(%)', 'ORA_4G_CALL_SETUP_SUCCESS_RATE_New(%)']:
+        if kpi in df_filtered.columns and not df_filtered[kpi].dropna().empty:
+            if df_filtered[kpi].max() <= 1.05: # Allow a tiny bit of float imprecision above 1
+                is_fraction = True
+            break
+
+    if is_fraction:
+        for col in df_filtered.columns:
+            if '(%)' in col and pd.api.types.is_numeric_dtype(df_filtered[col]):
+                df_filtered[col] = df_filtered[col] * 100
+
+    # 5\. Pivot/group the data to calculate the required KPIs for each entity
     agg_funcs = {}
     for col in ordered_kpis:
         if 'TRAFFIC' in col.upper():
@@ -153,6 +163,9 @@ def _generate_excel(grouped, entities, last_10_times, entity_col, ordered_kpis, 
                         cell.fill = fill_white
 
             current_row += 1
+
+        # Add an empty row for visual separation between entities
+        current_row += 1
 
     for col in ws.columns:
         max_length = 0
