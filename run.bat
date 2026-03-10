@@ -20,9 +20,10 @@ IF NOT EXIST "venv" (
 :: Activate the virtual environment
 call venv\Scripts\activate
 
-:: Try installing dependencies normally
+:: Try installing dependencies normally using python -m pip
+:: (Using just 'pip' can sometimes cause the batch script to exit prematurely on Windows)
 echo Installing dependencies...
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 IF %ERRORLEVEL% NEQ 0 (
     echo.
@@ -34,11 +35,11 @@ IF %ERRORLEVEL% NEQ 0 (
     echo Leave blank to skip and try running the app anyway.
     echo Format example: http://your.proxy.address:8080
     echo ----------------------------------------------------------------------
-    set /p PROXY="Enter proxy URL (or press Enter to skip): "
+    set /p PROXY="Enter proxy URL or press Enter to skip: "
 
     IF NOT "!PROXY!"=="" (
         echo Retrying installation with proxy...
-        pip install --proxy="!PROXY!" -r requirements.txt
+        python -m pip install --proxy="!PROXY!" -r requirements.txt
     )
 )
 
@@ -48,9 +49,9 @@ IF %ERRORLEVEL% NEQ 0 (
     echo.
     echo ----------------------------------------------------------------------
     echo CRITICAL ERROR: Could not install 'pandas' and 'openpyxl'.
-    echo Your company network is blocking the Python package manager (pip).
-    echo Please contact your IT department to allow pip to download packages.
-    echo Or install them manually using: pip install pandas openpyxl
+    echo Your company network is blocking the Python package manager.
+    echo Please contact your IT department to allow python to download packages.
+    echo Or install them manually using: python -m pip install pandas openpyxl
     echo ----------------------------------------------------------------------
     echo.
     pause
